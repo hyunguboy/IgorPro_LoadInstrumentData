@@ -340,14 +340,15 @@ Function HKang_PlotMAAPvsAE33()
 	Wave w_MAAP_BC_ugm3 = root:BlackCarbon:MAAP:w_MAAP_BC_ugm3
 	Wave w_AE33_time = root:BlackCarbon:AE33:w_AE33_time
 	Wave w_AE33_BC6_ugm3 = root:BlackCarbon:AE33:w_AE33_BC6_ugm3
+	Variable iloop, jloop
 
 	// Set/make the data folder where the waves will be saved.
-	If(datafolderexists("root:BlackCarbon:ScatterPlot"))
-		SetDataFolder root:BlackCarbon:ScatterPlot
+	If(datafolderexists("root:BlackCarbon:MAAPvsAE33"))
+		SetDataFolder root:BlackCarbon:MAAPvsAE33
 
 		Print "Scatter plot data folder found. Using existing data folder."
 	ElseIf(datafolderexists("root:BlackCarbon"))
-		NewDataFolder/O/S root:BlackCarbon:ScatterPlot
+		NewDataFolder/O/S root:BlackCarbon:MAAPvsAE33
 
 		Print "Scatter plot data folder not found. Creating data folder."
 	Else
@@ -366,11 +367,39 @@ Function HKang_PlotMAAPvsAE33()
 		Make/O/D w_MAAPvsAE33_ref1to1 = {0, wavemax(w_AE33_BC6_ugm3) * 1.25}
 	EndIf
 
-
+	// Get concentration waves of equal length by finding matched times.
+	Switch(numpnts(w_MAAP_time) < numpnts(w_AE33_time))
+		Case 0:
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+			Break
+		Case 1:
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+			Break
+	EndSwitch
 
 //in progress
 
-
+// Abort if no measurement times overlap.
 
 
 End
