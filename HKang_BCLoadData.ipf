@@ -5,6 +5,12 @@
 //
 //	GNU GPLv3. Please feel free to modify the code as necessary for your needs.
 //
+//	Version 1.02 (Released 2020-04-22)
+//	1.	Minor changes to how the scatter plot is displayed.
+//
+//	Version 1.01 (Released 2020-04-08)
+//	1.	Finished scatter plot function.
+//
 //	Version 1.00 (Released 2020-03-16)
 //	1.	Initial release tested with Igor Pro 6.37.
 
@@ -333,7 +339,8 @@ End
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Displays scatter plot of MAAP vs AE33.
+// Displays scatter plot of MAAP vs AE33. The MAAP and AE33 data and time
+//	waves need to be sorted by time prior to using this function.
 Function HKang_PlotMAAPvsAE33()
 
 	Wave w_MAAP_time = root:BlackCarbon:MAAP:w_MAAP_time
@@ -342,17 +349,24 @@ Function HKang_PlotMAAPvsAE33()
 	Wave w_AE33_BC6_ugm3 = root:BlackCarbon:AE33:w_AE33_BC6_ugm3
 	Variable iloop, jloop
 
+	DFREF dfr_current = GetDataFolderDFR()
+
 	// Set/make the data folder where the waves will be saved.
 	If(datafolderexists("root:BlackCarbon:MAAPvsAE33"))
 		SetDataFolder root:BlackCarbon:MAAPvsAE33
 
-		Print "Scatter plot data folder found. Using existing data folder."
+		Print "MAAPvsAE33 data folder found. Using existing data folder."
 	ElseIf(datafolderexists("root:BlackCarbon"))
 		NewDataFolder/O/S root:BlackCarbon:MAAPvsAE33
 
-		Print "Scatter plot data folder not found. Creating data folder."
+		Print "MAAPvsAE33 data folder not found. Creating data folder."
 	Else
 		Abort "Aborting. Black carbon data folder not found."
+	EndIf
+
+	// Abort if no time periods overlap.
+	If(wavemax(w_MAAP_time) < wavemin(w_AE33_time) || wavemax(w_AE33_time) < wavemin(w_MAAP_time))
+		Abort "Aborting. MAAp and AE33 time periods do not overlap."
 	EndIf
 
 	// Time matched waves to be displayed on the scatter plot.
@@ -360,47 +374,93 @@ Function HKang_PlotMAAPvsAE33()
 	Make/O/D/N=0 w_MAAPvsAE33_MAAPBC_ugm3
 	Make/O/D/N=0 w_MAAPvsAE33_AE33BC_ugm3
 
-	// 1:1 reference line on the scatter plot.
-	If(wavemax(w_MAAP_BC_ugm3) > wavemax(w_AE33_BC6_ugm3))
-		Make/O/D w_MAAPvsAE33_ref1to1 = {0, wavemax(w_MAAP_BC_ugm3) * 1.25}
-	Else
-		Make/O/D w_MAAPvsAE33_ref1to1 = {0, wavemax(w_AE33_BC6_ugm3) * 1.25}
-	EndIf
+	SetScale d, 0, 1, "dat", w_MAAPvsAE33_time
 
 	// Get concentration waves of equal length by finding matched times.
-	Switch(numpnts(w_MAAP_time) < numpnts(w_AE33_time))
-		Case 0:
-		
-		
-		
-		
-		
-		
-		
-		
-		
-		
-		
+	Switch(numpnts(w_MAAP_time) > numpnts(w_AE33_time))
+		Case 0:// When number of MAAP wave points is equal/smaller than that of the AE33.
+			For(iloop = 0; iloop < numpnts(w_MAAP_time); iloop += 1)
+				FindValue/V=(w_MAAP_time[iloop]) w_AE33_time
+				
+				If(V_value > 0)
+					InsertPoints/M=0 numpnts(w_MAAPvsAE33_time), 1, w_MAAPvsAE33_time
+					InsertPoints/M=0 numpnts(w_MAAPvsAE33_MAAPBC_ugm3), 1, w_MAAPvsAE33_MAAPBC_ugm3
+					InsertPoints/M=0 numpnts(w_MAAPvsAE33_AE33BC_ugm3), 1, w_MAAPvsAE33_AE33BC_ugm3
+					
+					w_MAAPvsAE33_time[numpnts(w_MAAPvsAE33_time) - 1] = w_MAAP_time[iloop]
+					w_MAAPvsAE33_MAAPBC_ugm3[numpnts(w_MAAPvsAE33_time) - 1] = w_MAAP_BC_ugm3[iloop]
+					w_MAAPvsAE33_AE33BC_ugm3[numpnts(w_MAAPvsAE33_time) - 1] = w_AE33_BC6_ugm3[V_value]
+				EndIf
+			EndFor
+
 			Break
-		Case 1:
-		
-		
-		
-		
-		
-		
-		
-		
-		
-		
-		
+		Case 1:// When number of AE33 wave points is smaller than that of the MAAP.
+			For(iloop = 0; iloop < numpnts(w_MAAP_time); iloop += 1)
+				FindValue/V=(w_AE33_time[iloop]) w_MAAP_time
+				
+				If(V_value > 0)
+					InsertPoints/M=0 numpnts(w_MAAPvsAE33_time), 1, w_MAAPvsAE33_time
+					InsertPoints/M=0 numpnts(w_MAAPvsAE33_MAAPBC_ugm3), 1, w_MAAPvsAE33_MAAPBC_ugm3
+					InsertPoints/M=0 numpnts(w_MAAPvsAE33_AE33BC_ugm3), 1, w_MAAPvsAE33_AE33BC_ugm3
+					
+					w_MAAPvsAE33_time[numpnts(w_MAAPvsAE33_time) - 1] = w_AE33_time[iloop]
+					w_MAAPvsAE33_MAAPBC_ugm3[numpnts(w_MAAPvsAE33_time) - 1] = w_AE33_BC6_ugm3[iloop]
+					w_MAAPvsAE33_AE33BC_ugm3[numpnts(w_MAAPvsAE33_time) - 1] = w_MAAP_BC_ugm3[V_value]
+				EndIf
+			EndFor		
+
 			Break
 	EndSwitch
 
-//in progress
+	// Abort if not enough measurement times overlap to make a scatter plot.
+	If(numpnts(w_MAAPvsAE33_time) < 3)
+		Print "Aborting. Not enough data points to make MAAP vs AE33 scatter plot."
+		Abort "Plot requires at least 3 points."
+	EndIf
 
-// Abort if no measurement times overlap.
+	// 1:1 reference line on the scatter plot.
+	If(wavemax(w_MAAPvsAE33_MAAPBC_ugm3) > wavemax(w_MAAPvsAE33_AE33BC_ugm3))
+		Make/O/D w_MAAPvsAE33_ref0p75 = {0, wavemax(w_MAAPvsAE33_MAAPBC_ugm3) * 0.75}
+		Make/O/D w_MAAPvsAE33_ref1to1 = {0, wavemax(w_MAAPvsAE33_MAAPBC_ugm3)}
+		Make/O/D w_MAAPvsAE33_ref1p25 = {0, wavemax(w_MAAPvsAE33_MAAPBC_ugm3) * 1.25}
+	Else
+		Make/O/D w_MAAPvsAE33_ref0p75 = {0, wavemax(w_MAAPvsAE33_AE33BC_ugm3) * 0.75}
+		Make/O/D w_MAAPvsAE33_ref1to1 = {0, wavemax(w_MAAPvsAE33_AE33BC_ugm3)}
+		Make/O/D w_MAAPvsAE33_ref1p25 = {0, wavemax(w_MAAPvsAE33_AE33BC_ugm3) * 1.25}
+	EndIf
 
+	// Display scatter plot.
+	Display/K=1 w_MAAPvsAE33_MAAPBC_ugm3 vs w_MAAPvsAE33_AE33BC_ugm3
+	SetAxis left 0, w_MAAPvsAE33_ref1to1[1]; Delayupdate
+	SetAxis bottom 0, w_MAAPvsAE33_ref1to1[1]; Delayupdate
+	Label left "MAAP Black Carbon (μg/m\\S3\\M)"; Delayupdate
+	Label bottom "AE33 Black Carbon (μg/m\\S3\\M)"; Delayupdate
+	ModifyGraph mode(w_MAAPvsAE33_MAAPBC_ugm3)=3,marker(w_MAAPvsAE33_MAAPBC_ugm3)=8; Delayupdate
+	ModifyGraph zColor(w_MAAPvsAE33_MAAPBC_ugm3)={w_MAAPvsAE33_time,*,*,Rainbow,1}; Delayupdate
+	ModifyGraph width=288,height=288; Delayupdate
+	ModifyGraph standoff=0
+	ColorScale/C/N=text0/A=MC heightPct=50,trace=w_MAAPvsAE33_MAAPBC_ugm3,lblMargin=25; DelayUpdate
+	ColorScale/C/N=text0 "Date & Time"; DelayUpdate
+	AppendToGraph w_MAAPvsAE33_ref1to1 vs w_MAAPvsAE33_ref1to1; DelayUpdate
+	AppendToGraph w_MAAPvsAE33_ref0p75 vs w_MAAPvsAE33_ref1to1; DelayUpdate
+	AppendToGraph w_MAAPvsAE33_ref1p25 vs w_MAAPvsAE33_ref1to1; DelayUpdate
+	ModifyGraph rgb(w_MAAPvsAE33_ref0p75)=(32768,32770,65535); DelayUpdate
+	ModifyGraph rgb(w_MAAPvsAE33_ref1p25)=(32768,32770,65535); DelayUpdate
+	ModifyGraph rgb(w_MAAPvsAE33_ref1to1)=(32768,32770,65535); DelayUpdate
+	ModifyGraph lstyle(w_MAAPvsAE33_ref1to1)=8; DelayUpdate
+	ModifyGraph lstyle(w_MAAPvsAE33_ref1p25)=8; DelayUpdate
+	ModifyGraph lstyle(w_MAAPvsAE33_ref0p75)=8; DelayUpdate
+	ModifyGraph lsize(w_MAAPvsAE33_ref1to1)=2; DelayUpdate
+	ModifyGraph lsize(w_MAAPvsAE33_ref0p75)=2; DelayUpdate
+	ModifyGraph lsize(w_MAAPvsAE33_ref1p25)=2; DelayUpdate
+	CurveFit/M=2/W=0/TBOX=(0x300) line, w_MAAPvsAE33_MAAPBC_ugm3/X=w_MAAPvsAE33_AE33BC_ugm3/D; DelayUpdate
+	ModifyGraph lsize(fit_w_MAAPvsAE33_MAAPBC_ugm3)=2; DelayUpdate
+	ModifyGraph rgb(fit_w_MAAPvsAE33_MAAPBC_ugm3)=(0,0,0); DelayUpdate
+	Legend/C/N=text1/A=MC; DelayUpdate
+	
+	Print "Number of MAAP and AE33 points where times match: ", numpnts(w_MAAPvsAE33_time)
+
+	SetDataFolder dfr_current
 
 End
 
