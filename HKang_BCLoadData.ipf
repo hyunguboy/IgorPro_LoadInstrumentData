@@ -1,9 +1,19 @@
 ﻿#pragma rtGlobals=3		// Use modern global access method and strict wave access.
-#pragma version = 1.00
+#pragma version = 1.03
 
 //	2020 Hyungu Kang, www.hazykinetics.com, hyunguboy@gmail.com
 //
 //	GNU GPLv3. Please feel free to modify the code as necessary for your needs.
+//
+//	Version 1.03 (Released 2020-05-14)
+//	1.	Loading AE33  data no longer needs the AE33 data files to be in a separate
+//		folder from the AE33 log files.
+//	2.	AE33 time loading bug (where time is on a 2 minute basis instead of 1)
+//		has been fixed. Bug caused by a difference between Igor Pro 6.37
+//		and 8.04.
+//	3.	Found difference in way wave names are loaded between Igor Pro 6.37 and
+//		8.04 for the AE33 data.
+//	4.	Added more descriptive comments to code.
 //
 //	Version 1.02 (Released 2020-04-22)
 //	1.	Minor changes to how the scatter plot is displayed.
@@ -12,7 +22,7 @@
 //	1.	Finished scatter plot function.
 //
 //	Version 1.00 (Released 2020-03-16)
-//	1.	Initial release tested with Igor Pro 6.37.
+//	1.	Initial release tested with Igor Pro 6.37 and 8.04.
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -97,15 +107,29 @@ Function HKang_AE33LoadData()
 
 	// Raw data wave names from the AE33 data file.
 	Wave Date_yyyy_MM_dd__, Time_hh_mm_ss__, Timebase_, RefCh1_
-	Wave Sen1Ch1_, Sen2Ch1_, RefCh2_, Sen1Ch2_, Sen2Ch2_, RefCh3_
-	Wave Sen1Ch3_, Sen2Ch3_, RefCh4_, Sen1Ch4_, Sen2Ch4_, RefCh5_
-	Wave Sen1Ch5_, Sen2Ch5_, RefCh6_, Sen1Ch6_, Sen2Ch6_, RefCh7_
-	Wave Sen1Ch7_, Sen2Ch7_, Flow1_, Flow2_, FlowC_, Pressure_Pa__
-	Wave Temperature__C__, BB____, ContTemp_, SupplyTemp_, Status_
-	Wave ContStatus_, DetectStatus_, LedStatus_, ValveStatus_, LedTemp_
-	Wave BC11_, BC12_, BC1_, BC21_, BC22_, BC2_, BC31_, BC32_, BC3_, BC41_
-	Wave BC42_, BC4_, BC51_, BC52_, BC5_, BC61_, BC62_, BC6_, BC71_, BC72_
-	Wave BC7_, K1_, K2_, K3_, K4_, K5_, K6_, K7_, TapeAdvCount_
+	Wave Sen1Ch1_, Sen2Ch1_, RefCh2_, Sen1Ch2_
+	Wave Sen2Ch2_, RefCh3_, Sen1Ch3_, Sen2Ch3_
+	Wave RefCh4_, Sen1Ch4_, Sen2Ch4_, RefCh5_
+	Wave Sen1Ch5_, Sen2Ch5_, RefCh6_, Sen1Ch6_
+	Wave Sen2Ch6_, RefCh7_, Sen1Ch7_, Sen2Ch7_
+	Wave Flow1_, Flow2_, FlowC_, Pressure_Pa__
+
+	// Wave name load has changed between Igor Pro 6.37 and 8.04.
+	#If(IgorVersion() >= 8)
+		Wave Temperature__C__
+	#Else
+		Wave Temperature___C__
+	#EndIf
+
+	Wave BB____, ContTemp_, SupplyTemp_
+	Wave Status_, ContStatus_, DetectStatus_
+	Wave LedStatus_, ValveStatus_, LedTemp_
+	Wave BC11_, BC12_, BC1_, BC21_, BC22_
+	Wave BC2_, BC31_, BC32_, BC3_, BC41_
+	Wave BC42_, BC4_, BC51_, BC52_, BC5_
+	Wave BC61_, BC62_, BC6_, BC71_, BC72_
+	Wave BC7_, K1_, K2_, K3_, K4_
+	Wave K5_, K6_, K7_, TapeAdvCount_
 
 	// Data wave names to be output by this function.
 	Wave w_AE33_date, w_AE33_hourMinute, w_AE33_timeBase, w_AE33_RefCh1
@@ -115,7 +139,8 @@ Function HKang_AE33LoadData()
 	Wave w_AE33_Sen1Ch5, w_AE33_Sen2Ch5, w_AE33_RefCh6, w_AE33_Sen1Ch6
 	Wave w_AE33_Sen2Ch6, w_AE33_RefCh7, w_AE33_Sen1Ch7, w_AE33_Sen2Ch7
 	Wave w_AE33_Flow1, w_AE33_Flow2, w_AE33_FlowC, w_AE33_Pressure
-	Wave w_AE33_TempC, w_AE33_BBPercent, w_AE33_ContTempC, w_AE33_SupplyTempC
+	Wave w_AE33_TempC
+	Wave w_AE33_BBPercent, w_AE33_ContTempC, w_AE33_SupplyTempC
 	Wave w_AE33_Status, w_AE33_ContStatus, w_AE33_DetectStatus
 	Wave w_AE33_LedStatus, w_AE33_ValveStatus, w_AE33_LedTempC
 	Wave w_AE33_BC11, w_AE33_BC12, w_AE33_BC1, w_AE33_BC21, w_AE33_BC22
@@ -131,23 +156,32 @@ Function HKang_AE33LoadData()
 	Do
 		str_file = indexedfile($str_path, iloop, ".dat")
 
+		// Break when no more .dat files are found.
 		If(strlen(str_file) == 0)
 			Break
 		EndIf
 
-		LoadWave/O/J/D/W/A/Q/K=0/V={", "," $",0,0}/L={5,8,0,0,0}/R={English,2,2,2,2,"Year/Month/DayOfMonth",40}/P = $str_path str_file
+		// Skip to next file if the indexed file is a log file.
+		If(stringmatch(str_file, "*log*") != 1)
+			LoadWave/O/J/D/W/A/Q/K=0/V={", "," $",0,0}/L={5,8,0,0,0}/R={English,2,2,2,2,"Year/Month/DayOfMonth",40}/P = $str_path str_file
 
-		For(jloop = 0; jloop < numpnts(w_AE33_DataWaveList); jloop += 1)
-			str_waveRef = w_AE33_RawWaveList[jloop]
-			Wave w_temporary0 = $str_waveRef
-			str_waveRef = w_AE33_DataWaveList[jloop]
-			Wave w_temporary1 = $str_waveRef
+			For(jloop = 0; jloop < numpnts(w_AE33_DataWaveList); jloop += 1)
+				str_waveRef = w_AE33_RawWaveList[jloop]
+				Wave w_temporary0 = $str_waveRef
+				str_waveRef = w_AE33_DataWaveList[jloop]
+				Wave w_temporary1 = $str_waveRef
 
-			Concatenate/NP {w_temporary0}, w_temporary1
-		EndFor
+				Concatenate/NP {w_temporary0}, w_temporary1
+			EndFor
+		EndIf
 
 		iloop += 1
 	While(1)
+
+	// Date wave load has changed between Igor Pro 6.37 and 8.04.
+	#If(IgorVersion() < 8)
+		w_AE33_date = floor(w_AE33_date/(24 * 60 * 60)) * (24 * 60 * 60)
+	#EndIf
 
 	// Make time wave.
 	Duplicate/O w_AE33_date, w_AE33_time
@@ -339,7 +373,7 @@ End
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Displays scatter plot of MAAP vs AE33. The MAAP and AE33 data and time
+//	Displays scatter plot of MAAP vs AE33. The MAAP and AE33 data and time
 //	waves need to be sorted by time prior to using this function.
 Function HKang_PlotMAAPvsAE33()
 
@@ -590,7 +624,17 @@ static Function HKang_AE33MakeWaves()
 	Concatenate/NP/T {w_AE33temporary}, w_AE33_RawWaveList
 	Make/O/T w_AE33temporary = {"Sen2Ch7_", "Flow1_", "Flow2_", "FlowC_", "Pressure_Pa__"}
 	Concatenate/NP/T {w_AE33temporary}, w_AE33_RawWaveList
-	Make/O/T w_AE33temporary = {"Temperature__C__", "BB____", "ContTemp_", "SupplyTemp_"}
+
+	// Wave name load has changed between Igor Pro 6.37 and 8.04.	
+	#If(IgorVersion() >= 8)
+		Make/O/T w_AE33temporary = {"Temperature__C__"}
+		Concatenate/NP/T {w_AE33temporary}, w_AE33_RawWaveList
+	#Else
+		Make/O/T w_AE33temporary = {"Temperature___C__"}
+		Concatenate/NP/T {w_AE33temporary}, w_AE33_RawWaveList
+	#EndIf
+
+	Make/O/T w_AE33temporary = {"BB____", "ContTemp_", "SupplyTemp_"}
 	Concatenate/NP/T {w_AE33temporary}, w_AE33_RawWaveList
 	Make/O/T w_AE33temporary = {"Status_", "ContStatus_", "DetectStatus_", "LedStatus_"}
 	Concatenate/NP/T {w_AE33temporary}, w_AE33_RawWaveList
@@ -718,7 +762,7 @@ static Function HKang_AE33KillClutter()
 	Wave Sen1Ch3_, Sen2Ch3_, RefCh4_, Sen1Ch4_, Sen2Ch4_, RefCh5_
 	Wave Sen1Ch5_, Sen2Ch5_, RefCh6_, Sen1Ch6_, Sen2Ch6_, RefCh7_
 	Wave Sen1Ch7_, Sen2Ch7_, Flow1_, Flow2_, FlowC_, Pressure_Pa__
-	Wave Temperature__C__, BB____, ContTemp_, SupplyTemp_, Status_
+	Wave Temperature___C__, BB____, ContTemp_, SupplyTemp_, Status_
 	Wave ContStatus_, DetectStatus_, LedStatus_, ValveStatus_, LedTemp_
 	Wave BC11_, BC12_, BC1_, BC21_, BC22_, BC2_, BC31_, BC32_, BC3_, BC41_
 	Wave BC42_, BC4_, BC51_, BC52_, BC5_, BC61_, BC62_, BC6_, BC71_, BC72_
@@ -728,11 +772,18 @@ static Function HKang_AE33KillClutter()
 	KillWaves/Z Sen2Ch1_, RefCh2_, Sen1Ch2_, Sen2Ch2_, RefCh3_, Sen1Ch3_, Sen2Ch3_
 	KillWaves/Z RefCh4_, Sen1Ch4_, Sen2Ch4_, RefCh5_, Sen1Ch5_, Sen2Ch5_, RefCh6_
 	KillWaves/Z Sen1Ch6_, Sen2Ch6_, RefCh7_, Sen1Ch7_, Sen2Ch7_, Flow1_, Flow2_
-	KillWaves/Z FlowC_, Pressure_Pa__, Temperature__C__, BB____, ContTemp_
+	KillWaves/Z FlowC_, Pressure_Pa__, BB____, ContTemp_
 	KillWaves/Z SupplyTemp_, Status_, ContStatus_, DetectStatus_, LedStatus_
 	KillWaves/Z ValveStatus_, LedTemp_, BC11_, BC12_, BC1_, BC21_, BC22_, BC2_
 	KillWaves/Z BC31_, BC32_, BC3_, BC41_, BC42_, BC4_, BC51_, BC52_, BC5_
 	KillWaves/Z BC61_, BC62_, BC6_, BC71_, BC72_, BC7_, K1_, K2_, K3_, K4_
 	KillWaves/Z K5_, K6_, K7_, TapeAdvCount_
+
+	// Wave name load has changed between Igor Pro 6.37 and 8.04.
+	#If(IgorVersion() >= 8)
+		KillWaves/Z Temperature__C__
+	#Else
+		KillWaves/Z Temperature___C__
+	#EndIf
 
 End
