@@ -1,9 +1,19 @@
 ﻿#pragma rtGlobals=3		// Use modern global access method and strict wave access.
-#pragma version = 1.03
+#pragma version = 1.04
+
+//#include <PopupWaveSelector>
 
 //	2020 Hyungu Kang, www.hazykinetics.com, hyunguboy@gmail.com
 //
 //	GNU GPLv3. Please feel free to modify the code as necessary for your needs.
+//
+//	Version 1.04 (Released 2020-05-XX)
+//	1.	The time series plots display waves in MAAP: or AE33: instead of the
+//		diagnostics folder.
+//	2.	The scatter plot function sorts the time series prior to finding
+//		matching time values between the MAAP and AE33.
+//	3.	A new function that takes a time period and converts the corresponding
+//		concentrations to NaN has been added.
 //
 //	Version 1.03 (Released 2020-05-14)
 //	1.	Loading AE33  data no longer needs the AE33 data files to be in a separate
@@ -29,8 +39,8 @@
 //	These functions can load the data files from the Magee Scientific
 //	Aethalometer AE33 or the Thermo Scientific Multi Angle Absorption
 //	Photometer (MAAP) Model 5012. I suggest avoiding loading too many files
-//	at once as it may cause memory issues. For the AE33, a year of data files
-//	is around 200 MB. It may take a few minutes to load that data.
+//	at once as it may cause memory issues. It may take a few minutes to load
+//	a years worth of AE33 data.
 //
 //	The AE33 data file are in .dat format, while those of the MAAP are .txt.
 //	The MAAP data need to be set to print format 3 (see MAAP instruction
@@ -42,11 +52,18 @@
 //	should not have other files of the same format of the data files. You can
 //	run the functions from the menu at the top or through the command line.
 //
-//	'HKang_MAAP_LoadData' removes points where the instrument status is not
+//	'HKang_AE33LoadData' only considers points where the status code is
+//	0, 8, 128, or 256 (from the AE33 manual). The function automatically
+//	removes the background measurements and other maintenace points.
+//
+//	'HKang_ConvertToNaNPeriodBC' opens up a window where you can input a time
+//	starting and end point and a time series wave so that you can 
+//
+//	'HKang_MAAPLoadData' removes points where the instrument status is not
 //	'000000'.
 //
-//	The MAAP vs AE33 scatter plot function automatically finds the time points
-//	where both MAAp and AE33 data exists.
+//	'HKang_PlotMAAPvsAE33' automatically finds the time points where
+//	both MAAp and AE33 data exists.
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -55,6 +72,9 @@ Menu "BlackCarbon"
 
 	"Load AE33 Data", HKang_AE33LoadData()
 	"Load MAAP Data", HKang_MAAPLoadData()
+	//"Make a Period become NaN", HKang_ConvertToNaNPeriodBC()
+	//"Identify Outliers", HKang_IdentifyOutliers()
+	//"Remove Outliers", HKang_RemoveOutliers
 	"Plot MAAP vs AE33", HKang_PlotMAAPvsAE33()
 
 End
@@ -222,7 +242,7 @@ Function HKang_AE33LoadData()
 
 	// Kill waves to prevent clutter.
 	HKang_AE33KillClutter()
-	
+
 	// Duplicate concentration waves to outer data folder for easier access.
 	SetDataFolder root:BlackCarbon:AE33
 	
@@ -231,12 +251,16 @@ Function HKang_AE33LoadData()
 	Duplicate/O root:BlackCarbon:AE33:Diagnostics:w_AE33_BB_ugm3, root:BlackCarbon:AE33:w_AE33_BB_ugm3
 	Duplicate/O root:BlackCarbon:AE33:Diagnostics:w_AE33_FF_ugm3, root:BlackCarbon:AE33:w_AE33_FF_ugm3
 
-	// Table and plot for quick look.
-	Edit/K=1 w_AE33_time, w_AE33_BC6_ugm3, w_AE33_BB_ugm3, w_AE33_FF_ugm3
+	// Find duplicate time points.
+	HKang_FindTimeDuplicates(w_AE33_time)
 
-	Display/K=1 w_AE33_BC6_ugm3 vs w_AE33_time
-	AppendToGraph w_AE33_BB_ugm3 vs w_AE33_time; DelayUpdate
-	AppendToGraph w_AE33_FF_ugm3 vs w_AE33_time; DelayUpdate
+	// Table and plot for quick look.
+	Edit/K=1 root:BlackCarbon:AE33:w_AE33_time, root:BlackCarbon:AE33:w_AE33_BC6_ugm3
+	AppendToTable root:BlackCarbon:AE33:w_AE33_BB_ugm3, root:BlackCarbon:AE33:w_AE33_FF_ugm3
+
+	Display/K=1 root:BlackCarbon:AE33:w_AE33_BC6_ugm3 vs root:BlackCarbon:AE33:w_AE33_time
+	AppendToGraph root:BlackCarbon:AE33:w_AE33_BB_ugm3 vs root:BlackCarbon:AE33:w_AE33_time; DelayUpdate
+	AppendToGraph root:BlackCarbon:AE33:w_AE33_FF_ugm3 vs root:BlackCarbon:AE33:w_AE33_time; DelayUpdate
 	ModifyGraph rgb(w_AE33_BC6_ugm3) = (0,0,0); DelayUpdate
 	ModifyGraph rgb(w_AE33_BB_ugm3) = (65535,0,0); DelayUpdate
 	ModifyGraph rgb(w_AE33_FF_ugm3) = (0,0,65535); DelayUpdate
@@ -360,12 +384,71 @@ Function HKang_MAAPLoadData()
 	Duplicate/O root:BlackCarbon:MAAP:Diagnostics:w_MAAP_time, root:BlackCarbon:MAAP:w_MAAP_time
 	Duplicate/O root:BlackCarbon:MAAP:Diagnostics:w_MAAP_BC_ugm3, root:BlackCarbon:MAAP:w_MAAP_BC_ugm3
 
-	// Table and plot for quick look.
-	Edit/K=1 w_MAAP_time, w_MAAP_BC_ugm3
+	// Find duplicate time points.
+	HKang_FindTimeDuplicates(w_MAAP_time)
 
-	Display/K=1 w_MAAP_BC_ugm3 vs w_MAAP_time
+	// Table and plot for quick look.
+	Edit/K=1 root:BlackCarbon:MAAP:w_MAAP_time, root:BlackCarbon:MAAP:w_MAAP_BC_ugm3
+
+	Display/K=1 root:BlackCarbon:MAAP:w_MAAP_BC_ugm3 vs root:BlackCarbon:MAAP:w_MAAP_time
 	ModifyGraph rgb(w_MAAP_BC_ugm3) = (0,0,0); DelayUpdate
 	Legend/C/N=text0/A = MC; DelayUpdate
+
+	SetDataFolder dfr_current
+
+End
+
+////////////////////////////////////////////////////////////////////////////////
+
+//	Converts conventration values to NaN for an input time period in case
+//	there is a reason instrument values need to be removed. The converted points
+//	are those equal or larger than s_startTime and less than s_endTime.
+//	Input times need to be in the format of "YYYY-MM-DD HH:MM:SS".
+Function HKang_ConvertToNaNPeriodBC(w_time, w_concentration, str_startTime, str_endTime)
+	Wave w_time, w_concentration
+	String str_startTime, str_endTime
+
+	Variable v_startYear, v_startMonth, v_startDay
+	Variable v_startHour, v_startMinute, v_startSecond
+	Variable v_endYear, v_endMonth, v_endDay
+	Variable v_endHour, v_endMinute, v_endSecond
+	Variable v_startTime, v_endTime
+	Variable v_pointsRemoved = 0
+	Variable iloop
+
+	DFREF dfr_current = GetDataFolderDFR()
+
+	// Check that the time and concentration wave lengths are of the same length.
+	If(numpnts(w_time) != numpnts(w_concentration))
+		Print "Aborting: Time and concentration waves are of different lengths."
+
+		Abort "Aborting: Time and concentration waves are of different lengths."
+	EndIf
+
+	// Convert the input time strings into numbers.
+	sscanf str_startTime, "%d-%d-%d %d:%d:%d", v_startYear, v_startMonth, v_startDay, v_startHour, v_startMinute, v_startSecond
+	sscanf str_endTime, "%d-%d-%d %d:%d:%d", v_endYear, v_endMonth, v_endDay, v_endHour, v_endMinute, v_endSecond
+
+	v_startTime = date2secs(v_startYear, v_startMonth, v_startDay) + v_startHour * 3600 + v_startMinute * 60 + v_startSecond
+	v_endTime = date2secs(v_endYear, v_endMonth, v_endDay) + v_endHour * 3600 + v_endMinute * 60 + v_endSecond
+
+	// Check that the end time is larger than the start time.
+	If(v_startTime >= v_endTime)
+		Print "Aborting: End time is not larger than start time."
+
+		Abort "Aborting: End time is not larger than start time."
+	EndIf
+
+	// Convert the concentration points into NaN.
+	For(iloop = 0; iloop < numpnts(w_time); iloop += 1)
+		If(w_time[iloop] >= v_startTime && w_time[iloop] < v_endTime)
+			w_concentration[iloop] = NaN
+
+			v_pointsRemoved = v_pointsRemoved + 1
+		EndIf
+	EndFor
+
+	Print "Number of points removed from " + nameofwave(w_concentration) + ": ", v_pointsRemoved
 
 	SetDataFolder dfr_current
 
@@ -395,12 +478,25 @@ Function HKang_PlotMAAPvsAE33()
 
 		Print "MAAPvsAE33 data folder not found. Creating data folder."
 	Else
-		Abort "Aborting. Black carbon data folder not found."
+		Abort "Aborting. BlackCarbon data folder not found."
 	EndIf
 
 	// Abort if no time periods overlap.
 	If(wavemax(w_MAAP_time) < wavemin(w_AE33_time) || wavemax(w_AE33_time) < wavemin(w_MAAP_time))
-		Abort "Aborting. MAAp and AE33 time periods do not overlap."
+		Abort "Aborting. MAAP and AE33 time periods do not overlap."
+	EndIf
+
+	// Check for duplicate time points, and abort if there are any.
+	If(HKang_CheckTimeDuplicates(w_MAAP_time) == 1)
+		Print "Aborting: Duplicate time points found in " + nameofwave(w_MAAP_time) + "."
+
+		Abort "Aborting: Duplicate time points found in " + nameofwave(w_MAAP_time) + "."
+	EndIf
+
+	If(HKang_CheckTimeDuplicates(w_AE33_time) == 1)
+		Print "Aborting: Duplicate time points found in " + nameofwave(w_AE33_time) + "."
+
+		Abort "Aborting: Duplicate time points found in " + nameofwave(w_AE33_time) + "."
 	EndIf
 
 	// Time matched waves to be displayed on the scatter plot.
@@ -415,12 +511,12 @@ Function HKang_PlotMAAPvsAE33()
 		Case 0:// When number of MAAP wave points is equal/smaller than that of the AE33.
 			For(iloop = 0; iloop < numpnts(w_MAAP_time); iloop += 1)
 				FindValue/V=(w_MAAP_time[iloop]) w_AE33_time
-				
-				If(V_value > 0)
+
+				If(V_value != -1 && numtype(w_MAAP_BC_ugm3[iloop]) == 0 && numtype(w_AE33_BC6_ugm3[iloop]) == 0)
 					InsertPoints/M=0 numpnts(w_MAAPvsAE33_time), 1, w_MAAPvsAE33_time
 					InsertPoints/M=0 numpnts(w_MAAPvsAE33_MAAPBC_ugm3), 1, w_MAAPvsAE33_MAAPBC_ugm3
 					InsertPoints/M=0 numpnts(w_MAAPvsAE33_AE33BC_ugm3), 1, w_MAAPvsAE33_AE33BC_ugm3
-					
+
 					w_MAAPvsAE33_time[numpnts(w_MAAPvsAE33_time) - 1] = w_MAAP_time[iloop]
 					w_MAAPvsAE33_MAAPBC_ugm3[numpnts(w_MAAPvsAE33_time) - 1] = w_MAAP_BC_ugm3[iloop]
 					w_MAAPvsAE33_AE33BC_ugm3[numpnts(w_MAAPvsAE33_time) - 1] = w_AE33_BC6_ugm3[V_value]
@@ -431,17 +527,17 @@ Function HKang_PlotMAAPvsAE33()
 		Case 1:// When number of AE33 wave points is smaller than that of the MAAP.
 			For(iloop = 0; iloop < numpnts(w_MAAP_time); iloop += 1)
 				FindValue/V=(w_AE33_time[iloop]) w_MAAP_time
-				
-				If(V_value > 0)
+
+				If(V_value != -1 && numtype(w_MAAP_BC_ugm3[iloop]) == 0 && numtype(w_AE33_BC6_ugm3[iloop]) == 0)
 					InsertPoints/M=0 numpnts(w_MAAPvsAE33_time), 1, w_MAAPvsAE33_time
 					InsertPoints/M=0 numpnts(w_MAAPvsAE33_MAAPBC_ugm3), 1, w_MAAPvsAE33_MAAPBC_ugm3
 					InsertPoints/M=0 numpnts(w_MAAPvsAE33_AE33BC_ugm3), 1, w_MAAPvsAE33_AE33BC_ugm3
-					
+
 					w_MAAPvsAE33_time[numpnts(w_MAAPvsAE33_time) - 1] = w_AE33_time[iloop]
 					w_MAAPvsAE33_MAAPBC_ugm3[numpnts(w_MAAPvsAE33_time) - 1] = w_AE33_BC6_ugm3[iloop]
 					w_MAAPvsAE33_AE33BC_ugm3[numpnts(w_MAAPvsAE33_time) - 1] = w_MAAP_BC_ugm3[V_value]
 				EndIf
-			EndFor		
+			EndFor
 
 			Break
 	EndSwitch
@@ -452,7 +548,7 @@ Function HKang_PlotMAAPvsAE33()
 		Abort "Plot requires at least 3 points."
 	EndIf
 
-	// 1:1 reference line on the scatter plot.
+	// 0.75x, 1x, 1.25x reference lines on the scatter plot.
 	If(wavemax(w_MAAPvsAE33_MAAPBC_ugm3) > wavemax(w_MAAPvsAE33_AE33BC_ugm3))
 		Make/O/D w_MAAPvsAE33_ref0p75 = {0, wavemax(w_MAAPvsAE33_MAAPBC_ugm3) * 0.75}
 		Make/O/D w_MAAPvsAE33_ref1to1 = {0, wavemax(w_MAAPvsAE33_MAAPBC_ugm3)}
@@ -463,6 +559,9 @@ Function HKang_PlotMAAPvsAE33()
 		Make/O/D w_MAAPvsAE33_ref1p25 = {0, wavemax(w_MAAPvsAE33_AE33BC_ugm3) * 1.25}
 	EndIf
 
+	// Table for quick look.
+	Edit/K=1 w_MAAPvsAE33_time, w_MAAPvsAE33_MAAPBC_ugm3, w_MAAPvsAE33_AE33BC_ugm3
+
 	// Display scatter plot.
 	Display/K=1 w_MAAPvsAE33_MAAPBC_ugm3 vs w_MAAPvsAE33_AE33BC_ugm3
 	SetAxis left 0, w_MAAPvsAE33_ref1to1[1]; Delayupdate
@@ -471,7 +570,6 @@ Function HKang_PlotMAAPvsAE33()
 	Label bottom "AE33 Black Carbon (μg/m\\S3\\M)"; Delayupdate
 	ModifyGraph mode(w_MAAPvsAE33_MAAPBC_ugm3)=3,marker(w_MAAPvsAE33_MAAPBC_ugm3)=8; Delayupdate
 	ModifyGraph zColor(w_MAAPvsAE33_MAAPBC_ugm3)={w_MAAPvsAE33_time,*,*,Rainbow,1}; Delayupdate
-	ModifyGraph width=288,height=288; Delayupdate
 	ModifyGraph standoff=0
 	ColorScale/C/N=text0/A=MC heightPct=50,trace=w_MAAPvsAE33_MAAPBC_ugm3,lblMargin=25; DelayUpdate
 	ColorScale/C/N=text0 "Date & Time"; DelayUpdate
@@ -491,7 +589,7 @@ Function HKang_PlotMAAPvsAE33()
 	ModifyGraph lsize(fit_w_MAAPvsAE33_MAAPBC_ugm3)=2; DelayUpdate
 	ModifyGraph rgb(fit_w_MAAPvsAE33_MAAPBC_ugm3)=(0,0,0); DelayUpdate
 	Legend/C/N=text1/A=MC; DelayUpdate
-	
+
 	Print "Number of MAAP and AE33 points where times match: ", numpnts(w_MAAPvsAE33_time)
 
 	SetDataFolder dfr_current
@@ -785,5 +883,62 @@ static Function HKang_AE33KillClutter()
 	#Else
 		KillWaves/Z Temperature___C__
 	#EndIf
+
+End
+
+////////////////////////////////////////////////////////////////////////////////
+
+//	Finds duplicate time points. The time wave needs to be sorted prior to using
+//	this function. If there are multiple duplicates of a given time point, that
+//	time point will appear multiple times in the output wave that contains
+//	duplicate time points.
+static Function HKang_FindTimeDuplicates(w_time)
+	Wave w_time
+
+	Variable iloop
+	
+	Make/O/D/N=0 w_timeDuplicates
+	
+	SetScale d, 0, 1, "dat", w_timeDuplicates
+
+	For(iloop = 1; iloop < numpnts(w_time); iloop += 1)
+		If(w_time[iloop] == w_time[iloop - 1])
+			InsertPoints/M=0 numpnts(w_timeDuplicates), 1, w_timeDuplicates
+
+			w_timeDuplicates[numpnts(w_timeDuplicates) - 1] = w_time[iloop]
+		EndIf
+	EndFor
+
+	// Kill w_timeDuplicates if it is empty.
+	If(numpnts(w_timeDuplicates) == 0)
+		KillWaves/Z w_timeDuplicates
+	Else
+		Edit/K=1 w_timeDuplicates
+		
+		Print "Warning: Duplicate time points found in " + nameofwave(w_time) + "."
+		Print "Check w_timeDuplicates for duplicate time points."
+	EndIf
+
+End
+
+////////////////////////////////////////////////////////////////////////////////
+
+//	Returns 1 if there are duplicate time points in the input wave. The input
+//	wave needs to be sorted prior to using this function.
+static Function HKang_CheckTimeDuplicates(w_time)
+	Wave w_time
+
+	Variable iloop
+	Variable v_duplicateCheck = 0
+
+	For(iloop = 1; iloop < numpnts(w_time); iloop += 1)
+		If(w_time[iloop] == w_time[iloop - 1])
+			v_duplicateCheck = 1
+
+			Break
+		EndIf
+	EndFor
+
+	return v_duplicateCheck
 
 End
