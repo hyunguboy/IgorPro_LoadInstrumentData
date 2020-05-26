@@ -1,21 +1,23 @@
 ﻿#pragma rtGlobals=3		// Use modern global access method and strict wave access.
-#pragma version = 1.04
-
-//#include <PopupWaveSelector>
+#pragma version = 1.4
 
 //	2020 Hyungu Kang, www.hazykinetics.com, hyunguboy@gmail.com
 //
 //	GNU GPLv3. Please feel free to modify the code as necessary for your needs.
 //
-//	Version 1.04 (Released 2020-05-XX)
+//	Version 1.4 (Released 2020-05-26)
 //	1.	The time series plots display waves in MAAP: or AE33: instead of the
 //		diagnostics folder.
 //	2.	The scatter plot function sorts the time series prior to finding
 //		matching time values between the MAAP and AE33.
 //	3.	A new function that takes a time period and converts the corresponding
 //		concentrations to NaN has been added.
+//	4.	Fixed the AE33 data file name condition for loading waves. Bug erupted
+//		when AE33 calibration files were output by the instrument.
+//	5.	Fixed conditions in the MAAP vs AE33 scatter plot function.
+//	6.	Minor code formatting changes.
 //
-//	Version 1.03 (Released 2020-05-14)
+//	Version 1.3 (Released 2020-05-14)
 //	1.	Loading AE33  data no longer needs the AE33 data files to be in a separate
 //		folder from the AE33 log files.
 //	2.	AE33 time loading bug (where time is on a 2 minute basis instead of 1)
@@ -25,13 +27,13 @@
 //		8.04 for the AE33 data.
 //	4.	Added more descriptive comments to code.
 //
-//	Version 1.02 (Released 2020-04-22)
+//	Version 1.2 (Released 2020-04-22)
 //	1.	Minor changes to how the scatter plot is displayed.
 //
-//	Version 1.01 (Released 2020-04-08)
+//	Version 1.1 (Released 2020-04-08)
 //	1.	Finished scatter plot function.
 //
-//	Version 1.00 (Released 2020-03-16)
+//	Version 1.0 (Released 2020-03-16)
 //	1.	Initial release tested with Igor Pro 6.37 and 8.04.
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -182,7 +184,7 @@ Function HKang_AE33LoadData()
 		EndIf
 
 		// Skip to next file if the indexed file is a log file.
-		If(stringmatch(str_file, "*log*") != 1)
+		If(stringmatch(str_file, "*AE33_AE33*"))
 			LoadWave/O/J/D/W/A/Q/K=0/V={", "," $",0,0}/L={5,8,0,0,0}/R={English,2,2,2,2,"Year/Month/DayOfMonth",40}/P = $str_path str_file
 
 			For(jloop = 0; jloop < numpnts(w_AE33_DataWaveList); jloop += 1)
@@ -420,9 +422,8 @@ Function HKang_ConvertToNaNPeriodBC(w_time, w_concentration, str_startTime, str_
 
 	// Check that the time and concentration wave lengths are of the same length.
 	If(numpnts(w_time) != numpnts(w_concentration))
-		Print "Aborting: Time and concentration waves are of different lengths."
-
-		Abort "Aborting: Time and concentration waves are of different lengths."
+		Print "Aborting: Time and concentration waves have different lengths."
+		Abort "Aborting: Time and concentration waves have different lengths."
 	EndIf
 
 	// Convert the input time strings into numbers.
@@ -435,7 +436,6 @@ Function HKang_ConvertToNaNPeriodBC(w_time, w_concentration, str_startTime, str_
 	// Check that the end time is larger than the start time.
 	If(v_startTime >= v_endTime)
 		Print "Aborting: End time is not larger than start time."
-
 		Abort "Aborting: End time is not larger than start time."
 	EndIf
 
@@ -481,21 +481,19 @@ Function HKang_PlotMAAPvsAE33()
 		Abort "Aborting. BlackCarbon data folder not found."
 	EndIf
 
-	// Abort if no time periods overlap.
+	// Abort if time periods do not overlap.
 	If(wavemax(w_MAAP_time) < wavemin(w_AE33_time) || wavemax(w_AE33_time) < wavemin(w_MAAP_time))
-		Abort "Aborting. MAAP and AE33 time periods do not overlap."
+		Abort "Aborting: MAAP and AE33 time periods do not overlap."
 	EndIf
 
 	// Check for duplicate time points, and abort if there are any.
 	If(HKang_CheckTimeDuplicates(w_MAAP_time) == 1)
 		Print "Aborting: Duplicate time points found in " + nameofwave(w_MAAP_time) + "."
-
 		Abort "Aborting: Duplicate time points found in " + nameofwave(w_MAAP_time) + "."
 	EndIf
 
 	If(HKang_CheckTimeDuplicates(w_AE33_time) == 1)
 		Print "Aborting: Duplicate time points found in " + nameofwave(w_AE33_time) + "."
-
 		Abort "Aborting: Duplicate time points found in " + nameofwave(w_AE33_time) + "."
 	EndIf
 
@@ -512,7 +510,7 @@ Function HKang_PlotMAAPvsAE33()
 			For(iloop = 0; iloop < numpnts(w_MAAP_time); iloop += 1)
 				FindValue/V=(w_MAAP_time[iloop]) w_AE33_time
 
-				If(V_value != -1 && numtype(w_MAAP_BC_ugm3[iloop]) == 0 && numtype(w_AE33_BC6_ugm3[iloop]) == 0)
+				If(V_value != -1 && numtype(w_MAAP_BC_ugm3[iloop]) == 0 && numtype(w_AE33_BC6_ugm3[V_value]) == 0)
 					InsertPoints/M=0 numpnts(w_MAAPvsAE33_time), 1, w_MAAPvsAE33_time
 					InsertPoints/M=0 numpnts(w_MAAPvsAE33_MAAPBC_ugm3), 1, w_MAAPvsAE33_MAAPBC_ugm3
 					InsertPoints/M=0 numpnts(w_MAAPvsAE33_AE33BC_ugm3), 1, w_MAAPvsAE33_AE33BC_ugm3
@@ -525,10 +523,10 @@ Function HKang_PlotMAAPvsAE33()
 
 			Break
 		Case 1:// When number of AE33 wave points is smaller than that of the MAAP.
-			For(iloop = 0; iloop < numpnts(w_MAAP_time); iloop += 1)
+			For(iloop = 0; iloop < numpnts(w_AE33_time); iloop += 1)
 				FindValue/V=(w_AE33_time[iloop]) w_MAAP_time
 
-				If(V_value != -1 && numtype(w_MAAP_BC_ugm3[iloop]) == 0 && numtype(w_AE33_BC6_ugm3[iloop]) == 0)
+				If(V_value != -1 && numtype(w_MAAP_BC_ugm3[V_value]) == 0 && numtype(w_AE33_BC6_ugm3[iloop]) == 0)
 					InsertPoints/M=0 numpnts(w_MAAPvsAE33_time), 1, w_MAAPvsAE33_time
 					InsertPoints/M=0 numpnts(w_MAAPvsAE33_MAAPBC_ugm3), 1, w_MAAPvsAE33_MAAPBC_ugm3
 					InsertPoints/M=0 numpnts(w_MAAPvsAE33_AE33BC_ugm3), 1, w_MAAPvsAE33_AE33BC_ugm3
@@ -544,8 +542,9 @@ Function HKang_PlotMAAPvsAE33()
 
 	// Abort if not enough measurement times overlap to make a scatter plot.
 	If(numpnts(w_MAAPvsAE33_time) < 3)
-		Print "Aborting. Not enough data points to make MAAP vs AE33 scatter plot."
-		Abort "Plot requires at least 3 points."
+		Print "Aborting: Not enough data points to make MAAP vs AE33 scatter plot."
+		Print "Check that there is enough time overlap between the MAAP and AE33 waves."
+		Abort "Aborting: Scatter plot requires at least 3 points."
 	EndIf
 
 	// 0.75x, 1x, 1.25x reference lines on the scatter plot.
