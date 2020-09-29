@@ -5,6 +5,12 @@
 //
 //	GNU GPLv3. Please feel free to modify the code as necessary for your needs.
 //
+//	Version 1.1 (Released 2020-09-29)
+//	1.	Added axes labels to the displayed ozone figure.
+//	2.	Fixed bug where load wave would display an error message when a data
+//		file is empty.
+//	3.	Removes NaN points in the data waves.
+//
 //	Version 1.0 (Released 2020-08-28)
 //	1.	Initial release tested with Igor Pro 6.37 and 8.04.
 
@@ -14,8 +20,8 @@
 //	outputs with the following columns:
 //
 //	1.	O3 concentration (ppb)
-//	2.	Cell temperature (C/K)
-//	3.	Pressure (torr/mbar)
+//	2.	Cell temperature (C)
+//	3.	Pressure (torr)
 //	4.	Flow rate (cm3 min-1)
 //	5.	Date (DD-MM-YY)
 //	6.	Time (HH:MM:SS)
@@ -30,7 +36,6 @@
 Menu "2BTech Model 202"
 
 	"Load Ozone Data", HKang_Load2BTechOzone()
-	"Find Outliers"
 
 End
 
@@ -39,6 +44,7 @@ End
 Function HKang_Load2BTechOzone()
 
 	Variable iloop
+	Variable RTError	// Runtime error in for diagnostics.
 	String str_file, str_path
 	String str_waveRef
 	String str_columnInfo
@@ -107,32 +113,35 @@ Function HKang_Load2BTechOzone()
 
 		// Load data file.
 		LoadWave/J/O/N/Q/B=str_columnInfo/V={","," $",0,0}/R={English,1,2,2,1,"DayOfMonth/Month/Year",40}/P = $str_path str_file
-
+		RTError = GetRTError(1)	// 0 if no error, 59 if file is empty.
+		
 		// Get data file info to check if it is empty and skip if it is.
 		GetFileFolderInfo/P=$str_path/Q str_file
 
-		If(V_logEOF == 0)
+		If(V_logEOF > 0)
+
+			// Raw data wave names from the 2BTech Model 202 data file.
+			Wave w_2BTech_rawO3ppb, w_2BTech_rawTempC, w_2BTech_rawPTorr
+			Wave w_2BTech_rawFlowLPM, w_2BTech_rawDate, w_2BTech_rawHourMin
+
+			// Remove NaN points in the raw data waves. The Model 202 data files
+			// have a NaN row between each data row.
+			HKang_Model202RemoveNaNs()
+
+			Concatenate/NP {w_2BTech_rawO3ppb}, w_2BTech_O3ppb
+			Concatenate/NP {w_2BTech_rawTempC}, w_2BTech_tempC
+			Concatenate/NP {w_2BTech_rawPTorr}, w_2BTech_pTorr
+			Concatenate/NP {w_2BTech_rawFlowLPM}, w_2BTech_flowLPM
+			Concatenate/NP {w_2BTech_rawDate}, w_2BTech_date
+			Concatenate/NP {w_2BTech_rawHourMin}, w_2BTech_hourMin
+
+			iloop += 1
+		Else
 			iloop += 1
 
 			Continue
 		EndIf
 
-		// Raw data wave names from the 2BTech Model 202 data file.
-		Wave w_2BTech_rawO3ppb, w_2BTech_rawTempC, w_2BTech_rawPTorr
-		Wave w_2BTech_rawFlowLPM, w_2BTech_rawDate, w_2BTech_rawHourMin
-
-		// Remove NaN points in the raw data waves. The Model 202 data files
-		// have a NaN row between each data row.
-		HKang_Model202RemoveNaNs()
-
-		Concatenate/NP {w_2BTech_rawO3ppb}, w_2BTech_O3ppb
-		Concatenate/NP {w_2BTech_rawTempC}, w_2BTech_tempC
-		Concatenate/NP {w_2BTech_rawPTorr}, w_2BTech_pTorr
-		Concatenate/NP {w_2BTech_rawFlowLPM}, w_2BTech_flowLPM
-		Concatenate/NP {w_2BTech_rawDate}, w_2BTech_date
-		Concatenate/NP {w_2BTech_rawHourMin}, w_2BTech_hourMin
-
-		iloop += 1
 	While(1)
 
 	// Make time wave.
@@ -141,7 +150,7 @@ Function HKang_Load2BTechOzone()
 
 	SetScale d, 0, 1, "dat", w_2BTech_time
 
-	// Sort the waves to time in case the data files were out of order.
+	// Sort the waves by time in case the data files were out of order.
 	Sort w_2BTech_time, w_2BTech_O3ppb, w_2BTech_tempC, w_2BTech_pTorr
 	Sort w_2BTech_time, w_2BTech_flowLPM, w_2BTech_date, w_2BTech_hourMin
 	Sort w_2BTech_time, w_2BTech_time
@@ -163,6 +172,8 @@ Function HKang_Load2BTechOzone()
 	Display/K=1 root:Model202Ozone:w_2BTech_O3ppb vs root:Model202Ozone:w_2BTech_time
 	ModifyGraph rgb(w_2BTech_O3ppb) = (0,0,0); DelayUpdate
 	Legend/C/N=text0/A = MC; DelayUpdate
+	Label left "Ozone (ppb)"; DelayUpdate
+	Label bottom "Date & Time"; DelayUpdate
 
 	SetDataFolder dfr_current
 
