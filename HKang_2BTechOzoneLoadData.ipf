@@ -97,11 +97,33 @@ Function HKang_Load2BTechOzone()
 			Break
 		EndIf
 
-		LoadWave/J/O/N/Q/B=str_columnInfo/V={","," $",0,0}/R={English,1,2,2,1,"Year-Month-DayOfMonth",40}/P = $str_path str_file
+		// Move on to next file if str_file is "LOGCON". LOGCON is the file
+		// containing the instrument settings and does not contain data.
+		If(stringmatch(str_file, "*LOGCON*"))
+			iloop += 1
+
+			Continue
+		EndIf
+
+		// Load data file.
+		LoadWave/J/O/N/Q/B=str_columnInfo/V={","," $",0,0}/R={English,1,2,2,1,"DayOfMonth/Month/Year",40}/P = $str_path str_file
+
+		// Get data file info to check if it is empty and skip if it is.
+		GetFileFolderInfo/P=$str_path/Q str_file
+
+		If(V_logEOF == 0)
+			iloop += 1
+
+			Continue
+		EndIf
 
 		// Raw data wave names from the 2BTech Model 202 data file.
 		Wave w_2BTech_rawO3ppb, w_2BTech_rawTempC, w_2BTech_rawPTorr
 		Wave w_2BTech_rawFlowLPM, w_2BTech_rawDate, w_2BTech_rawHourMin
+
+		// Remove NaN points in the raw data waves. The Model 202 data files
+		// have a NaN row between each data row.
+		HKang_Model202RemoveNaNs()
 
 		Concatenate/NP {w_2BTech_rawO3ppb}, w_2BTech_O3ppb
 		Concatenate/NP {w_2BTech_rawTempC}, w_2BTech_tempC
@@ -139,7 +161,7 @@ Function HKang_Load2BTechOzone()
 	Edit/K=1 root:Model202Ozone:w_2BTech_time, root:Model202Ozone:w_2BTech_O3ppb
 
 	Display/K=1 root:Model202Ozone:w_2BTech_O3ppb vs root:Model202Ozone:w_2BTech_time
-	ModifyGraph rgb(w_MAAP_BC_ugm3) = (0,0,0); DelayUpdate
+	ModifyGraph rgb(w_2BTech_O3ppb) = (0,0,0); DelayUpdate
 	Legend/C/N=text0/A = MC; DelayUpdate
 
 	SetDataFolder dfr_current
@@ -178,5 +200,39 @@ static Function HKang_FindTimeDuplicates(w_time)
 		Print "Warning: Duplicate time points found in " + nameofwave(w_time) + "."
 		Print "Check w_timeDuplicates for duplicate time points."
 	EndIf
+
+End
+
+////////////////////////////////////////////////////////////////////////////////
+
+//	Removes the NaN points in the data file waves using date as the reference.
+//	That is, if the date point is NaN, assume all the other points in other
+//	waves in the same row are also NaN.
+static Function HKang_Model202RemoveNaNs()
+
+	Wave w_2BTech_rawO3ppb, w_2BTech_rawTempC, w_2BTech_rawPTorr
+	Wave w_2BTech_rawFlowLPM, w_2BTech_rawDate, w_2BTech_rawHourMin
+	Variable iloop
+
+	iloop = 0
+
+	Do
+		If(iloop >= numpnts(w_2BTech_rawDate))
+			Break
+		EndIf
+	
+		If(numtype(w_2BTech_rawDate[iloop]) == 2)
+			DeletePoints/M=0 iloop, 1, w_2BTech_rawO3ppb
+			DeletePoints/M=0 iloop, 1, w_2BTech_rawTempC
+			DeletePoints/M=0 iloop, 1, w_2BTech_rawPTorr
+			DeletePoints/M=0 iloop, 1, w_2BTech_rawFlowLPM
+			DeletePoints/M=0 iloop, 1, w_2BTech_rawDate
+			DeletePoints/M=0 iloop, 1, w_2BTech_rawHourMin
+			
+			iloop -= 1
+		EndIf
+	
+		iloop += 1
+	While(1)
 
 End
