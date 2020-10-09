@@ -5,6 +5,12 @@
 //
 //	GNU GPLv3. Please feel free to modify the code as necessary for your needs.
 //
+//	Version 1.2 (Released 2020-10-09)
+//	1.	Fixed a bug where the ozone concentration wave length did not match
+//		those of other waves. This was caused because the data file contains
+//		"STOP" at the end of the file when the file is saved. This results
+//		in the first column being 1 point longer than the others.
+//
 //	Version 1.1 (Released 2020-09-29)
 //	1.	Added axes labels to the displayed ozone figure.
 //	2.	Fixed bug where load wave would display an error message when a data
@@ -48,6 +54,7 @@ Function HKang_Load2BTechOzone()
 	String str_file, str_path
 	String str_waveRef
 	String str_columnInfo
+	String str_point
 
 	DFREF dfr_current = GetDataFolderDFR()
 
@@ -85,7 +92,7 @@ Function HKang_Load2BTechOzone()
 
 	// Column information about the 2BTech Model 202 data waves.
 	str_columnInfo = ""
-	str_columnInfo += "C=1,F=1,N=w_2BTech_rawO3ppb;"
+	str_columnInfo += "C=1,F=-2,N=w_2BTech_rawStrO3ppb;"
 	str_columnInfo += "C=1,F=1,N=w_2BTech_rawTempC;"
 	str_columnInfo += "C=1,F=1,N=w_2BTech_rawPTorr;"
 	str_columnInfo += "C=1,F=1,N=w_2BTech_rawFlowLPM;"
@@ -121,8 +128,13 @@ Function HKang_Load2BTechOzone()
 		If(V_logEOF > 0)
 
 			// Raw data wave names from the 2BTech Model 202 data file.
-			Wave w_2BTech_rawO3ppb, w_2BTech_rawTempC, w_2BTech_rawPTorr
+			Wave w_2BTech_rawTempC, w_2BTech_rawPTorr
 			Wave w_2BTech_rawFlowLPM, w_2BTech_rawDate, w_2BTech_rawHourMin
+			Wave/T w_2BTech_rawStrO3ppb
+
+			DeletePoints/M=0 numpnts(w_2BTech_rawStrO3ppb) - 1, 1, w_2BTech_rawStrO3ppb
+
+			Make/O/D/N=(numpnts(w_2BTech_rawStrO3ppb)) w_2BTech_rawO3ppb = str2num(w_2BTech_rawStrO3ppb)
 
 			// Remove NaN points in the raw data waves. The Model 202 data files
 			// have a NaN row between each data row.
@@ -156,8 +168,9 @@ Function HKang_Load2BTechOzone()
 	Sort w_2BTech_time, w_2BTech_time
 
 	// Kill waves to prevent clutter.
-	KillWaves/Z w_2BTech_rawO3ppb, w_2BTech_rawTempC, w_2BTech_rawPTorr
+	KillWaves/Z w_2BTech_rawStrO3ppb, w_2BTech_rawTempC, w_2BTech_rawPTorr
 	KillWaves/Z w_2BTech_rawFlowLPM, w_2BTech_rawDate, w_2BTech_rawHourMin
+	KillWaves/Z w_2BTech_rawO3ppb
 
 	// Duplicate concentration waves to outer data folder for easier access.
 	Duplicate/O w_2BTech_time, root:Model202Ozone:w_2BTech_time
