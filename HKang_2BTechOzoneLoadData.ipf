@@ -1,9 +1,13 @@
 ﻿#pragma rtGlobals=3		// Use modern global access method and strict wave access.
 #pragma version=1.0
 
-//	2020 Hyungu Kang, www.hazykinetics.com, hyunguboy@gmail.com
+//	2021 Hyungu Kang, www.hazykinetics.com, hyunguboy@gmail.com
 //
 //	GNU GPLv3. Please feel free to modify the code as necessary for your needs.
+//
+//	Version 1.3 (Eeleased 2021-01-10)
+//	1.	Now loads data from a Model 106L. Menu has been updated to reflect
+//		this new feature.
 //
 //	Version 1.2 (Released 2020-10-09)
 //	1.	Fixed a bug where the ozone concentration wave length did not match
