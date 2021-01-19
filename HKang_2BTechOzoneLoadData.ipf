@@ -5,9 +5,11 @@
 //
 //	GNU GPLv3. Please feel free to modify the code as necessary for your needs.
 //
-//	Version 1.3 (Eeleased 2021-01-13)
+//	Version 1.3 (Released 2021-01-19)
 //	1.	Now loads data from a Model 106L. Menu has been updated to reflect
 //		this new feature.
+//	2.	Data folders have been renamed for easier searching in the data
+//		browser.
 //
 //	Version 1.2 (Released 2020-10-09)
 //	1.	Fixed a bug where the ozone concentration wave length did not match
@@ -104,7 +106,7 @@ Function HKang_Load2BTechModel106L()
 	EndIf
 
 	// Make waves for the 2BTech Model 106L data.
-	Make/O/D/N=0 w_2BTech_O3ppb
+	Make/O/D/N=0 w_2BTech_O3ppm
 	Make/O/D/N=0 w_2BTech_tempC
 	Make/O/D/N=0 w_2BTech_pTorr
 	Make/O/D/N=0 w_2BTech_flowLPM
@@ -114,7 +116,7 @@ Function HKang_Load2BTechModel106L()
 
 	// Column information about the 2BTech Model 202 data waves.
 	str_columnInfo = ""
-	str_columnInfo += "C=1,F=-2,N=w_2BTech_rawStrO3ppb;"
+	str_columnInfo += "C=1,F=-2,N=w_2BTech_rawStrO3ppm;"
 	str_columnInfo += "C=1,F=1,N=w_2BTech_rawTempC;"
 	str_columnInfo += "C=1,F=1,N=w_2BTech_rawPTorr;"
 	str_columnInfo += "C=1,F=1,N=w_2BTech_rawFlowLPM;"
@@ -154,14 +156,14 @@ Function HKang_Load2BTechModel106L()
 			Wave w_2BTech_rawTempC, w_2BTech_rawPTorr
 			Wave w_2BTech_rawFlowLPM, w_2BTech_rawDiodeV
 			Wave w_2BTech_rawDate, w_2BTech_rawHourMin
-			Wave/T w_2BTech_rawStrO3ppb
+			Wave/T w_2BTech_rawStrO3ppm
 
-			Make/O/D/N=(numpnts(w_2BTech_rawStrO3ppb)) w_2BTech_rawO3ppb = str2num(w_2BTech_rawStrO3ppb)
+			Make/O/D/N=(numpnts(w_2BTech_rawStrO3ppm)) w_2BTech_rawO3ppm = str2num(w_2BTech_rawStrO3ppm)
 
 			// Remove NaN points in the raw data waves in case.
 			HKang_Model106LRemoveNaNs()
 
-			Concatenate/NP {w_2BTech_rawO3ppb}, w_2BTech_O3ppb
+			Concatenate/NP {w_2BTech_rawO3ppm}, w_2BTech_O3ppm
 			Concatenate/NP {w_2BTech_rawTempC}, w_2BTech_tempC
 			Concatenate/NP {w_2BTech_rawPTorr}, w_2BTech_pTorr
 			Concatenate/NP {w_2BTech_rawFlowLPM}, w_2BTech_flowLPM
@@ -185,29 +187,29 @@ Function HKang_Load2BTechModel106L()
 	SetScale d, 0, 1, "dat", w_2BTech_time
 
 	// Sort the waves by time in case the data files were out of order.
-	Sort w_2BTech_time, w_2BTech_O3ppb, w_2BTech_tempC, w_2BTech_pTorr
+	Sort w_2BTech_time, w_2BTech_O3ppm, w_2BTech_tempC, w_2BTech_pTorr
 	Sort w_2BTech_time, w_2BTech_flowLPM, w_2BTech_diodeV, w_2BTech_date
 	Sort w_2BTech_time, w_2BTech_hourMin, w_2BTech_time
 
 	// Kill waves to prevent clutter.
-	KillWaves/Z w_2BTech_rawStrO3ppb, w_2BTech_rawTempC, w_2BTech_rawPTorr
+	KillWaves/Z w_2BTech_rawStrO3ppm, w_2BTech_rawTempC, w_2BTech_rawPTorr
 	KillWaves/Z w_2BTech_rawFlowLPM, w_2BTech_rawDiodeV, w_2BTech_rawDate
-	KillWaves/Z w_2BTech_rawHourMin, w_2BTech_rawO3ppb
+	KillWaves/Z w_2BTech_rawHourMin, w_2BTech_rawO3ppm
 
 	// Duplicate concentration waves to outer data folder for easier access.
 	Duplicate/O w_2BTech_time, root:OzoneModel106L:w_2BTech_time
-	Duplicate/O w_2BTech_O3ppb, root:OzoneModel106L:w_2BTech_O3ppb
+	Duplicate/O w_2BTech_O3ppm, root:OzoneModel106L:w_2BTech_O3ppm
 
 	// Find duplicate time points.
 	HKang_FindTimeDuplicates(w_2BTech_time)
 
 	// Table and plot for quick look.
-	Edit/K=1 root:Model202Ozone:w_2BTech_time, root:Model202Ozone:w_2BTech_O3ppb
+	Edit/K=1 root:OzoneModel106L:w_2BTech_time, root:OzoneModel106L:w_2BTech_O3ppm
 
-	Display/K=1 root:Model202Ozone:w_2BTech_O3ppb vs root:Model202Ozone:w_2BTech_time
-	ModifyGraph rgb(w_2BTech_O3ppb) = (0,0,0); DelayUpdate
+	Display/K=1 root:OzoneModel106L:w_2BTech_O3ppm vs root:OzoneModel106L:w_2BTech_time
+	ModifyGraph rgb(w_2BTech_O3ppm) = (0,0,0); DelayUpdate
 	Legend/C/N=text0/A = MC; DelayUpdate
-	Label left "Ozone (ppb)"; DelayUpdate
+	Label left "Ozone (ppm)"; DelayUpdate
 	Label bottom "Date & Time"; DelayUpdate
 
 	SetDataFolder dfr_current
@@ -236,19 +238,19 @@ Function HKang_Load2BTechModel202()
 	EndIf
 
 	// Set/make the data folder where the waves will be saved.
-	If(datafolderexists("root:Model202Ozone:Diagnostics"))
-		SetDataFolder root:Model202Ozone:Diagnostics
+	If(datafolderexists("root:OzoneModel202:Diagnostics"))
+		SetDataFolder root:OzoneModel202:Diagnostics
 
-		Print "2BTech Model202 data folder found. Using existing data folder."
-	ElseIf(datafolderexists("root:Model202Ozone"))
-		NewDataFolder/O/S root:Model202Ozone:Diagnostics
+		Print "2BTech Model 202 data folder found. Using existing data folder."
+	ElseIf(datafolderexists("root:OzoneModel202"))
+		NewDataFolder/O/S root:OzoneModel202:Diagnostics
 
-		Print "2BTech Model202 diagnostics data folder not found. Creating data folder."
+		Print "2BTech Model 202 diagnostics data folder not found. Creating data folder."
 	Else
-		NewDataFolder/O root:Model202Ozone
-		NewDataFolder/O/S root:Model202Ozone:Diagnostics
+		NewDataFolder/O root:OzoneModel202
+		NewDataFolder/O/S root:OzoneModel202:Diagnostics
 
-		Print "2BTech Model202 data folder not found. Creating data folder."
+		Print "2BTech Model 202 data folder not found. Creating data folder."
 	EndIf
 
 	// Make waves for the 2BTech Model 202 data.
@@ -342,16 +344,16 @@ Function HKang_Load2BTechModel202()
 	KillWaves/Z w_2BTech_rawO3ppb
 
 	// Duplicate concentration waves to outer data folder for easier access.
-	Duplicate/O w_2BTech_time, root:Model202Ozone:w_2BTech_time
-	Duplicate/O w_2BTech_O3ppb, root:Model202Ozone:w_2BTech_O3ppb
+	Duplicate/O w_2BTech_time, root:OzoneModel202:w_2BTech_time
+	Duplicate/O w_2BTech_O3ppb, root:OzoneModel202:w_2BTech_O3ppb
 
 	// Find duplicate time points.
 	HKang_FindTimeDuplicates(w_2BTech_time)
 
 	// Table and plot for quick look.
-	Edit/K=1 root:Model202Ozone:w_2BTech_time, root:Model202Ozone:w_2BTech_O3ppb
+	Edit/K=1 root:OzoneModel202:w_2BTech_time, root:OzoneModel202:w_2BTech_O3ppb
 
-	Display/K=1 root:Model202Ozone:w_2BTech_O3ppb vs root:Model202Ozone:w_2BTech_time
+	Display/K=1 root:OzoneModel202:w_2BTech_O3ppb vs root:OzoneModel202:w_2BTech_time
 	ModifyGraph rgb(w_2BTech_O3ppb) = (0,0,0); DelayUpdate
 	Legend/C/N=text0/A = MC; DelayUpdate
 	Label left "Ozone (ppb)"; DelayUpdate
@@ -437,7 +439,7 @@ End
 //	waves in the same row are also NaN.
 static Function HKang_Model106LRemoveNaNs()
 
-	Wave w_2BTech_rawO3ppb, w_2BTech_rawTempC, w_2BTech_rawPTorr
+	Wave w_2BTech_rawO3ppm, w_2BTech_rawTempC, w_2BTech_rawPTorr
 	Wave w_2BTech_rawFlowLPM, w_2BTech_rawDiodeV
 	Wave w_2BTech_rawDate, w_2BTech_rawHourMin
 	Variable iloop
@@ -450,7 +452,7 @@ static Function HKang_Model106LRemoveNaNs()
 		EndIf
 	
 		If(numtype(w_2BTech_rawDate[iloop]) == 2)
-			DeletePoints/M=0 iloop, 1, w_2BTech_rawO3ppb
+			DeletePoints/M=0 iloop, 1, w_2BTech_rawO3ppm
 			DeletePoints/M=0 iloop, 1, w_2BTech_rawTempC
 			DeletePoints/M=0 iloop, 1, w_2BTech_rawPTorr
 			DeletePoints/M=0 iloop, 1, w_2BTech_rawFlowLPM
